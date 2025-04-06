@@ -5,12 +5,12 @@
    //Text labels here
    define('BTN_DOWNLOAD', 'Download');
    define('BTN_DELETE', 'Delete');
-   define('BTN_DELETE_CONFIRM', 'Are you sure to delete this file?');
+   define('BTN_DELETE_CONFIRM', 'Are you sure you want to delete this file?');
    define('BTN_CONVERT', 'Start Convert');
    define('BTN_DELETEALL', 'Delete All');
-   define('BTN_DELETEALL_CONFIRM', 'Are you sure to delete all items?');
+   define('BTN_DELETEALL_CONFIRM', 'Are you sure you want to delete all items?');
    define('BTN_DELETESEL', 'Delete Selected');
-   define('BTN_DELETESEL_CONFIRM', 'Are you sure to delete selected items?');
+   define('BTN_DELETESEL_CONFIRM', 'Are you sure you want to delete selected items?');
    define('BTN_SELECTALL', 'Select All');
    define('BTN_SELECTNONE', 'Deselect');
    define('BTN_GETZIP', 'Get Zip');
@@ -139,12 +139,14 @@
          case 'updateSizeOrder':
             if(!empty($_POST['previewSize'])) {
                $previewSize = $_POST['previewSize'];
-               if ($previewSize < 100 || $previewSize > 1920) $previewSize = 640;
+               $previewSize = max($previewSize,100);
+			   $previewSize = min($previewSize, 1920);
                setcookie("previewSize", $previewSize, time() + (86400 * 365), "/");
             }        
             if(!empty($_POST['thumbSize'])) {
                $thumbSize = $_POST['thumbSize'];
-               if ($thumbSize < 32 || $thumbSize > 320) $thumbSize = 96;
+               $thumbSize = max($thumbSize, 32);
+			   $thumbSize = min($thumbSize, 320);
                setcookie("thumbSize", $thumbSize, time() + (86400 * 365), "/");
             }        
             break;
@@ -337,7 +339,7 @@
             } else {
                $timeD = $nowTime - $fTime;
                if ($timeFilter == $timeFilterMax) {
-                  $include = ($timeD >= 86400 * ($timeFilter-1));
+                  $include = ($timeD >= 86400 * ($timeFilter - 2));
                } else {
                   $include = ($timeD >= (86400 * ($timeFilter - 2))) && ($timeD < (($timeFilter - 1) * 86400));
                }
@@ -422,7 +424,7 @@ function diskUsage() {
          echo "<option value='$tf'  $selected>$tfStr</option>";
       }
       if ($timeFilter >= $timeFilterMax) $selected = "selected"; else $selected = "";
-      $tfStr = $timeFilterMax * 24 . '+ hours old';
+      $tfStr = ($timeFilterMax-2) * 24 . '+ hours old';
       echo "<option value='$timeFilterMax'  $selected>$tfStr</option>";
       echo '</select>';
 	  echo '<br>';

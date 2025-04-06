@@ -44,6 +44,9 @@
    define('SCHEDULE_DUSKENDMINUTES', 'DuskEnd_Minutes');
    define('SCHEDULE_ALLDAY', 'AllDay');
    define('SCHEDULE_DAYMODE', 'DayMode');
+   define('SCHEDULE_MODE_SUN', '0');
+   define('SCHEDULE_MODE_ALLDAY', '1');
+   define('SCHEDULE_MODE_FIXED', '2');
    define('SCHEDULE_FIXEDTIMES', 'FixedTimes');
    define('SCHEDULE_MANAGEMENTINTERVAL', 'Management_Interval');
    define('SCHEDULE_MANAGEMENTCOMMAND', 'Management_Command');
@@ -160,7 +163,7 @@
                }
             }
             //Backwards compatibility fixes go here
-            if (array_key_exists(SCHEDULE_ALLDAY,$input)) $pars[SCHEDULE_DAYMODE] = '1';
+            if (array_key_exists(SCHEDULE_ALLDAY,$input)) $pars[SCHEDULE_DAYMODE] = SCHEDULE_MODE_ALLDAY;
             if (array_key_exists('Longtitude',$input)) $pars[SCHEDULE_LONGITUDE] = $input['Longtitude'];
             //Duplicate old Day to First AllDay
             if (count($pars[SCHEDULE_COMMANDSON]) < 11) {
@@ -200,7 +203,7 @@
          SCHEDULE_LATITUDE => '52.00',
          SCHEDULE_LONGITUDE => '0.00',
          SCHEDULE_MAXCAPTURE => '0',
-         SCHEDULE_DAYMODE => '1',
+         SCHEDULE_DAYMODE => SCHEDULE_MODE_ALLDAY,
          SCHEDULE_AUTOCAPTUREINTERVAL => '0',
          SCHEDULE_AUTOCAMERAINTERVAL => '0',
          SCHEDULE_TIMES => array("09:00"),
@@ -402,7 +405,7 @@ function cmdHelp() {
              echo "<tr><td>vi</td><td>number</td><td>set video split interval in seconds. 0=Off</td></tr>";
              echo "<tr><td>an</td><td>text</td><td>set annotation</td></tr>";
              echo "<tr><td>ab</td><td>0/1</td><td>annotation background</td></tr>";
-             echo "<tr><td>px</td><td>AAAA BBBB CC DD EEEE FFFF</td><td>set video+img resolution  video = AxB px, C fps, boxed with D fps, image = ExF px)</td></tr>";
+             echo "<tr><td>px</td><td>AAAA BBBB CC DD EEEE FFFF GG</td><td>set video+img resolution  video = AxB px, C fps, divider G,boxed with D fps, image = ExF px)</td></tr>";
              echo "<tr><td>as</td><td>number</td><td>set text size (v3 only)  0-99</td></tr>";
              echo "<tr><td>at</td><td>E YYY UUU VVV</td><td>set custom text colour (v3 only)</td></tr>";
              echo "<tr><td>ac</td><td>E YYY UUU VVV</td><td>set custom background colour (v3 only)</td></tr>";
@@ -446,6 +449,7 @@ function cmdHelp() {
              echo "<tr><td>st</td><td>0/1</td><td>Off/On Camera statistics</td></tr>";
              echo "<tr><td>qp</td><td>A BB CC</td><td>Set h264 encoding pars A=minimise_frag BB=initial_quant CC=encode_qp</td></tr>";
              echo "<tr><td>ls</td><td>number</td><td>Set Max log size. 0 disable logging</td></tr>";
+             echo "<tr><td>hp</td><td>number</td><td>Set hdmi_preview off/on</td></tr>";
            echo "</table>";
          echo "</div>";
        echo "</div>";
@@ -469,6 +473,7 @@ function cmdHelp() {
 		$cmds = explode(';', $cmdString);
 	    foreach ($cmds as $cmd) {
 		  if ($cmd != "") {
+			$cmd = trim($cmd);
 			writeLog("Send $cmd");
 			$fifo = fopen($schedulePars[SCHEDULE_FIFOOUT], "w");
 			fwrite($fifo, $cmd . "\n");
@@ -515,13 +520,15 @@ function cmdHelp() {
       for ($i=0; $i < count($times); $i++) {
          $fMins = $times[$i];
          $j = strpos($fMins, ':');
-         $fMins = substr($fMins, 0, $j) * 60 + substr($fMins, $j+1);
-         if ($fMins < $cMins) {
-            if ($fMins > $maxLessV) {
-              $maxLessV = $fMins;
-              $period = $i;
-            }
-         }
+         if ($j !== false) {
+		   $fMins = substr($fMins, 0, $j) * 60 + substr($fMins, $j+1);
+           if ($fMins < $cMins) {
+             if ($fMins > $maxLessV) {
+               $maxLessV = $fMins;
+               $period = $i;
+             }
+           }
+		 }
       }
       return $period + 5;
    }
@@ -533,12 +540,12 @@ function cmdHelp() {
 	  return in_array($day,$days[$period]);
    }
    
-   //Return period of day 0=Night,1=Dawn,2=Day,3=Dusk
+   //Return period of day 1=Night,2=Dawn,3=Day,4=Dusk
    function dayPeriod() {
       global $schedulePars;
       $t = getCurrentLocalTime(true);
       switch($schedulePars[SCHEDULE_DAYMODE]) {
-         case 0:
+         case SCHEDULE_MODE_SUN:
             $sr = 60 * getSunrise(SUNFUNCS_RET_DOUBLE);
             $ss = 60 * getSunset(SUNFUNCS_RET_DOUBLE);
             if ($t < ($sr + $schedulePars[SCHEDULE_DAWNSTARTMINUTES])) {
@@ -553,10 +560,10 @@ function cmdHelp() {
                $period = 3;
             }
             break;
-         case 1:
+         case SCHEDULE_MODE_ALLDAY:
             $period = 0;
             break;
-         case 2:
+         case SCHEDULE_MODE_FIXED:
 			$period = findFixedTimePeriod($t);
             break;
       }
@@ -778,7 +785,8 @@ function cmdHelp() {
                      //No capture in progress, Check if day period changing
                      $newDayPeriod = dayPeriod();
 					 $newDay = strftime("%w");
-                     if ($newDayPeriod != $lastDayPeriod || $newDay != $lastDay) {
+//                     if ($newDayPeriod != $lastDayPeriod || (($newDay != $lastDay) && ($schedulePars[SCHEDULE_DAYMODE] == SCHEDULE_MODE_FIXED))) {
+                     if ($newDayPeriod != $lastDayPeriod) {
                         writeLog("New period detected $newDayPeriod");
                         sendCmds($schedulePars[SCHEDULE_MODES][$newDayPeriod], $newDayPeriod);
                         $lastDayPeriod = $newDayPeriod;
